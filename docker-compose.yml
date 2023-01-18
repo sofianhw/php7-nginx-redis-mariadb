@@ -1,0 +1,59 @@
+version: "3"
+services:
+  nginx:
+    image: nginx:latest
+    container_name: "nginx"
+    ports:
+      - "8181:80"
+    volumes:
+      - .:/app
+      - ./conf/:/etc/nginx/conf.d/
+    depends_on:
+      - api-service
+    networks:
+      - caching
+  api-service:
+    image: "php-redis:latest"
+    container_name: "pusri-api"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:9000"
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - caching
+  db:
+    image: mariadb:10.5.8
+    restart: unless-stopped
+    container_name: pusri-db
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: test_store
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - ./mysql/:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "--silent"]
+    networks:
+      - caching
+  redis:
+    image: 'redis:alpine'
+    container_name: redis
+    command: 'redis-server --requirepass secret'
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+    networks:
+      - caching
+networks:
+  caching:
+    driver: bridge
